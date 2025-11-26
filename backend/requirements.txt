@@ -8,3 +8,5 @@ firebase-admin>=6.5.0
 opencv-python>=4.10.0
 pygrabber>=0.1
 requests>=2.32.0
+pyserial>=3.5
+openai>=1.51.0

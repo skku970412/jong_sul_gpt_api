@@ -1,0 +1,15 @@
+{
+  "timestamp": "2025-11-19T10:58:30.548161+00:00",
+  "image_path": "captured\\manual-20251119-195753.jpg",
+  "recognition_url": "http://localhost:8001/v1/recognize",
+  "success": false,
+  "plate": null,
+  "response": null,
+  "error": "HTTP error: 422 Client Error: Unprocessable Entity for url: http://localhost:8001/v1/recognize",
+  "detected_timestamp": "2025-11-19T10:58:26.189732+00:00",
+  "match_url": "http://localhost:8000/api/plates/match",
+  "match_success": false,
+  "match_response": null,
+  "match_error": "Plate not recognized.",
+  "car_plate_same": null
+}

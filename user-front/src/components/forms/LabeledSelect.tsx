@@ -8,6 +8,7 @@ interface LabeledSelectProps<T extends string | number> {
   value: T;
   onChange: (value: T) => void;
   options: Option<T>[];
+  disabled?: boolean;
 }
 
 export default function LabeledSelect<T extends string | number>({
@@ -15,6 +16,7 @@ export default function LabeledSelect<T extends string | number>({
   value,
   onChange,
   options,
+  disabled = false,
 }: LabeledSelectProps<T>) {
   return (
     <label className="grid gap-1">
@@ -28,6 +30,7 @@ export default function LabeledSelect<T extends string | number>({
           const next = Number.isNaN(numeric) ? ((raw as unknown) as T) : ((numeric as unknown) as T);
           onChange(next);
         }}
+        disabled={disabled}
       >
         {options.map((option) => (
           <option key={String(option.value)} value={option.value as any}>

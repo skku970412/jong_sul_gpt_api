@@ -56,6 +56,68 @@ class ReservationCreate(BaseModel):
         raise ValueError("유효한 시간 형식이 아닙니다.")
 
 
+class ReservationBatchCreate(BaseModel):
+    session_id: int = Field(..., alias="sessionId")
+    plate: str
+    date: date
+    start_times: list[time] = Field(..., alias="startTimes")
+    contact_email: str | None = Field(None, alias="contactEmail")
+
+    model_config = ConfigDict(populate_by_name=True, str_strip_whitespace=True)
+
+    @field_validator("plate")
+    @classmethod
+    def validate_plate(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 5:
+            raise ValueError("차량 번호가 너무 짧습니다.")
+        return normalized
+
+    @field_validator("contact_email")
+    @classmethod
+    def normalize_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        email = value.strip()
+        if not email:
+            return None
+        return email.lower()
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def parse_date(cls, value: Any) -> date:
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        raise ValueError("잘못된 날짜 형식입니다.")
+
+    @field_validator("start_times", mode="before")
+    @classmethod
+    def parse_times(cls, value: Any) -> list[time]:
+        if isinstance(value, list):
+            parsed: list[time] = []
+            for item in value:
+                if isinstance(item, time):
+                    parsed.append(item)
+                    continue
+                if isinstance(item, str):
+                    parsed.append(datetime.strptime(item, "%H:%M").time())
+                    continue
+                raise ValueError("잘못된 시간 형식입니다.")
+            return parsed
+        raise ValueError("startTimes는 리스트여야 합니다.")
+
+    @field_validator("start_times")
+    @classmethod
+    def validate_times(cls, values: list[time]) -> list[time]:
+        if not values:
+            raise ValueError("startTimes가 비어 있습니다.")
+        if len(set(values)) != len(values):
+            raise ValueError("startTimes에 중복된 시간이 있습니다.")
+        return values
+
+
 class ReservationPublic(BaseModel):
     id: str
     session_id: int = Field(..., alias="sessionId")
@@ -89,6 +151,10 @@ class SessionsResponse(BaseModel):
 
 class ReservationDeleteResponse(BaseModel):
     ok: bool = True
+
+
+class ReservationsBatchResponse(BaseModel):
+    reservations: list[ReservationPublic]
 
 
 class PlateVerificationRequest(BaseModel):

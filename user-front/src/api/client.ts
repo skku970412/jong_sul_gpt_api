@@ -5,6 +5,7 @@ import {
   SessionsResponse,
   VerifySlotPayload,
   VerifySlotResponse,
+  CreateReservationBatchPayload,
 } from "./types";
 
 const DEFAULT_API_BASE =
@@ -73,6 +74,16 @@ export async function createReservation(payload: CreateReservationPayload): Prom
   });
   if (!res.ok) throw new Error(await extractError(res));
   return (await res.json()) as Reservation;
+}
+
+export async function createReservationsBatch(payload: CreateReservationBatchPayload): Promise<Reservation[]> {
+  const res = await fetch(`${API_BASE}/api/reservations/batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await extractError(res));
+  return (await res.json()) as Reservation[];
 }
 
 export async function myReservations(email: string): Promise<Reservation[]> {

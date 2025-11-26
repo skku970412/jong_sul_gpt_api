@@ -84,7 +84,7 @@ ensure_frontend_deps
 export AUTO_SEED_SESSIONS="${AUTO_SEED_SESSIONS:-1}"
 export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:5173,http://localhost:5174,http://localhost:5175,http://192.168.45.9:5173,http://192.168.45.9:5174,http://172.17.16.1:5173,http://172.17.16.1:5174,http://172.27.64.1:5173,http://172.27.64.1:5174}"
 export VITE_API_BASE="${VITE_API_BASE:-http://localhost:8000}"
-export PLATE_SERVICE_URL="${PLATE_SERVICE_URL:-http://localhost:8001/v1/recognize}"
+export PLATE_SERVICE_URL="${PLATE_SERVICE_URL:-http://localhost:8000/api/license-plates}"
 
 cleanup() {
   if [[ "${#PIDS[@]}" -eq 0 ]]; then

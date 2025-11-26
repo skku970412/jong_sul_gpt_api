@@ -26,6 +26,10 @@ interface SchedulePageProps {
   slots: string[];
   startTime: string;
   onStartTimeChange: (value: string) => void;
+  multiMode: boolean;
+  onMultiModeChange: (value: boolean) => void;
+  selectedStarts: string[];
+  onToggleStart: (value: string) => void;
   estimatedPrice: number;
   plate: string;
   error: string | null;
@@ -51,6 +55,10 @@ export default function SchedulePage({
   slots,
   startTime,
   onStartTimeChange,
+  multiMode,
+  onMultiModeChange,
+  selectedStarts,
+  onToggleStart,
   estimatedPrice,
   plate,
   error,
@@ -62,12 +70,17 @@ export default function SchedulePage({
   availabilityStripe,
   dayEndMinutes,
 }: SchedulePageProps) {
+  const blockMinutes = multiMode ? 60 : durationMin;
+  const selectedRanges = multiMode
+    ? selectedStarts.map((slot) => `${slot} ~ ${endTime(slot, 60)}`)
+    : [`${startTime} ~ ${endTime(startTime, durationMin)}`];
+
   return (
     <Card>
       <CardHeader
         icon={<Clock className="w-5 h-5" />}
-        title="이용 시간 선택"
-        subtitle="세션과 이용 시간을 선택해 주세요."
+        title="사용 시간 선택"
+        subtitle="세션과 시간을 선택해 예약을 진행하세요"
       />
       <div className="grid gap-4 p-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -78,18 +91,34 @@ export default function SchedulePage({
             options={sessionOptions.map((value) => ({ label: `세션 ${value}`, value }))}
           />
           <LabeledSelect
-            label="이용 시간(분)"
+            label="사용 시간(분)"
             value={durationMin}
             onChange={(value) => onDurationChange(Number(value))}
             options={durationOptions.map((value) => ({ label: `${value}분`, value }))}
+            disabled={multiMode}
           />
-          <LabeledInput label="이용 날짜" value={date} onChange={onDateChange} type="date" />
+          <LabeledInput label="사용 날짜" value={date} onChange={onDateChange} type="date" />
+        </div>
+
+        <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={multiMode}
+              onChange={(event) => onMultiModeChange(event.target.checked)}
+              className="h-4 w-4"
+            />
+            <span>여러 개 1시간 예약 선택 모드</span>
+          </label>
+          <span className="text-xs text-gray-600">
+            시작 시간을 여러 개 선택하면 각 1시간씩 별도 예약을 만듭니다.
+          </span>
         </div>
 
         <div className="rounded-2xl border border-gray-200 p-3">
           <div className="text-sm text-gray-600 mb-2 flex items-center justify-between">
             <span>
-              날짜별 여유도:{" "}
+              날짜별 여유도{" "}
               <span className="inline-block w-3 h-3 rounded bg-emerald-500 mr-1" />
               여유 <span className="inline-block w-3 h-3 rounded bg-amber-500 mx-1" />
               보통 <span className="inline-block w-3 h-3 rounded bg-rose-500 ml-1" />
@@ -118,20 +147,36 @@ export default function SchedulePage({
         </div>
 
         <div className="rounded-2xl border border-gray-200 p-3">
-          <div className="text-sm text-gray-600 mb-2">시간을 선택해 주세요.</div>
+          <div className="text-sm text-gray-600 mb-2">시간을 선택해주세요</div>
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
             {slots.map((slot) => {
               const start = toMinutes(slot);
-              const end = start + durationMin;
-              const overlaps = occupiedSet.has(slot);
+              const end = start + blockMinutes;
+              let overlaps = false;
+              let cursor = start;
+              while (cursor < end) {
+                if (occupiedSet.has(fromMinutes(cursor))) {
+                  overlaps = true;
+                  break;
+                }
+                cursor += 30;
+              }
+              const conflictsWithSelection =
+                multiMode &&
+                selectedStarts.some((selected) => {
+                  if (selected === slot) return false;
+                  const selStart = toMinutes(selected);
+                  const selEnd = selStart + 60;
+                  return start < selEnd && selStart < end;
+                });
               const beyond = end > dayEndMinutes;
-              const disabled = overlaps || beyond;
-              const selected = startTime === slot;
+              const disabled = overlaps || beyond || conflictsWithSelection;
+              const selected = multiMode ? selectedStarts.includes(slot) : startTime === slot;
               return (
                 <button
                   key={slot}
                   disabled={disabled}
-                  onClick={() => onStartTimeChange(slot)}
+                  onClick={() => (multiMode ? onToggleStart(slot) : onStartTimeChange(slot))}
                   className={`rounded-lg px-2 py-2 text-sm border transition ${
                     disabled
                       ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
@@ -145,14 +190,13 @@ export default function SchedulePage({
           </div>
         </div>
 
-        <div className="rounded-xl bg-gray-50 p-4 text-sm flex items-center justify-between">
+        <div className="rounded-xl bg-gray-50 p-4 text-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="space-y-1">
             <div>
               차량 번호: <span className="font-semibold">{plate}</span>
             </div>
-            <div>
-              이용 일정: {date} {startTime} ~ {endTime(startTime, durationMin)} · 세션 {sessionId}
-            </div>
+            <div>선택한 예약: {selectedRanges.length ? selectedRanges.join(", ") : "없음"}</div>
+            <div>세션: 세션 {sessionId}</div>
           </div>
           <div className="text-right">
             <div className="text-xs text-gray-500">예상 결제 금액</div>
@@ -172,7 +216,7 @@ export default function SchedulePage({
               내 예약
             </Button>
             <Button disabled={loading} onClick={onSubmit}>
-              {loading ? "예약 중..." : "예약 확정"}
+              {loading ? "예약 중.." : multiMode ? `예약 확정 (${selectedStarts.length}개)` : "예약 확정"}
               <CheckCircle2 className="w-4 h-4 ml-1" />
             </Button>
           </div>

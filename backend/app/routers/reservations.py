@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from ..schemas import (
     PlateVerificationRequest,
     PlateVerificationResponse,
     ReservationCreate,
+    ReservationBatchCreate,
     ReservationDeleteResponse,
     ReservationPublic,
     SessionReservations,
@@ -140,6 +141,68 @@ def create_reservation(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return to_reservation_public(reservation)
+
+
+@router.post(
+    "/reservations/batch",
+    response_model=list[ReservationPublic],
+    status_code=status.HTTP_201_CREATED,
+    summary="다수 1시간 예약 생성",
+)
+def create_reservations_batch(
+    payload: ReservationBatchCreate,
+    db: Session = Depends(get_db),
+) -> list[ReservationPublic]:
+    session_obj: ChargingSession | None = db.get(ChargingSession, payload.session_id)
+    if session_obj is None:
+        raise HTTPException(status_code=404, detail="해당 세션을 찾을 수 없습니다.")
+    if not payload.start_times:
+        raise HTTPException(status_code=400, detail="startTimes가 비어 있습니다.")
+
+    business_open_dt = combine_business_datetime(payload.date, BUSINESS_OPEN)
+    business_close_dt = combine_business_datetime(payload.date, BUSINESS_CLOSE)
+    duration_minutes = 60
+
+    def _is_valid_slot(dt: datetime) -> bool:
+        return dt.minute in (0, 30) and dt.second == 0 and dt.microsecond == 0
+
+    created: list[Reservation] = []
+    try:
+        for start_time_value in sorted(payload.start_times):
+            start_local = combine_business_datetime(payload.date, start_time_value)
+            end_local = start_local + timedelta(minutes=duration_minutes)
+
+            if end_local <= start_local:
+                raise HTTPException(status_code=400, detail="종료 시간이 시작 시간보다 빠릅니다.")
+            if not _is_valid_slot(start_local) or not _is_valid_slot(end_local):
+                raise HTTPException(status_code=400, detail="예약은 30분 단위로만 가능합니다.")
+            if not (business_open_dt <= start_local < business_close_dt):
+                raise HTTPException(
+                    status_code=400, detail="예약 시작 시간은 영업 시간(09:00~22:00) 안이어야 합니다."
+                )
+            if end_local > business_close_dt:
+                raise HTTPException(status_code=400, detail="예약 종료 시간이 영업 종료(22:00) 이후입니다.")
+
+            start_dt = start_local.astimezone(UTC)
+            end_dt = end_local.astimezone(UTC)
+
+            reservation = crud.create_reservation(
+                db,
+                session_id=session_obj.id,
+                plate=payload.plate,
+                start_time=start_dt,
+                end_time=end_dt,
+                contact_email=payload.contact_email,
+            )
+            created.append(reservation)
+    except HTTPException:
+        db.rollback()
+        raise
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return [to_reservation_public(reservation) for reservation in created]
 @router.post(
     "/plates/verify",
     response_model=PlateVerificationResponse,

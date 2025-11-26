@@ -21,6 +21,7 @@ venv/
 env/
 .env
 .env.*
+openai-key.txt
 
 # Local databases & data dumps
 *.db

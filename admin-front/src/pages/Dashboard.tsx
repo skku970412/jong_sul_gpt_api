@@ -1,4 +1,4 @@
-import { Activity, Calendar, PlugZap, RefreshCcw, Trash2 } from "lucide-react";
+import { Activity, Calendar, CarFront, PlugZap, RefreshCcw, Trash2 } from "lucide-react";
 import Button from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import ErrorBar from "../components/ui/ErrorBar";
@@ -21,6 +21,8 @@ interface DashboardPageProps {
   lastUpdatedAt: Date | null;
   kpi: { totalRes: number; inProgress: number; utilization: number };
   error: string | null;
+  layoutMode: "grid" | "list";
+  onLayoutModeChange: (mode: "grid" | "list") => void;
 }
 
 export default function DashboardPage({
@@ -36,6 +38,8 @@ export default function DashboardPage({
   lastUpdatedAt,
   kpi,
   error,
+  layoutMode,
+  onLayoutModeChange,
 }: DashboardPageProps) {
   return (
     <div className="grid gap-4">
@@ -50,15 +54,18 @@ export default function DashboardPage({
               onChange={(event) => onDateChange(event.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Toggle
-              checked={autoRefresh}
-              onChange={onToggleAutoRefresh}
-              label="15초마다 자동 새로고침"
-            />
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Toggle checked={autoRefresh} onChange={onToggleAutoRefresh} label="15초마다 자동 새로고침" />
             <Button onClick={onRefresh} disabled={loading}>
               <RefreshCcw className="w-4 h-4 mr-1" />
-              {loading ? "새로고침 중..." : "새로고침"}
+              {loading ? "새로고침 중.." : "새로고침"}
+            </Button>
+            <Button
+              variant="ghost"
+              className="border border-gray-200"
+              onClick={() => onLayoutModeChange(layoutMode === "grid" ? "list" : "grid")}
+            >
+              보기: {layoutMode === "grid" ? "2열 카드" : "1열 리스트"}
             </Button>
           </div>
         </div>
@@ -68,19 +75,11 @@ export default function DashboardPage({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard icon={<ListDot />} title="일일 예약 건수" value={`${kpi.totalRes.toLocaleString()} 건`} />
-        <MetricCard
-          icon={<Activity className="w-5 h-5" />}
-          title="진행 중인 예약"
-          value={`${kpi.inProgress} 건`}
-        />
-        <MetricCard
-          icon={<PlugZap className="w-5 h-5" />}
-          title="평균 이용률"
-          value={`${kpi.utilization}%`}
-        />
+        <MetricCard icon={<Activity className="w-5 h-5" />} title="진행 중인 예약" value={`${kpi.inProgress} 건`} />
+        <MetricCard icon={<PlugZap className="w-5 h-5" />} title="평균 이용률" value={`${kpi.utilization}%`} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className={`grid gap-4 ${layoutMode === "grid" ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"}`}>
         {sessions.map((session) => (
           <SessionCard
             key={session.sessionId}
@@ -113,10 +112,8 @@ function SessionCard({ data, onDelete, deletingId }: SessionCardProps) {
   const timeSlots = slotsOfDay();
   const avgSlotsPerReservation = 1.7;
   const occupiedSlots = data.reservations.length * avgSlotsPerReservation;
-  const utilization = Math.min(
-    100,
-    Math.round((occupiedSlots / (timeSlots.length * 1)) * 100)
-  );
+  const utilization = Math.min(100, Math.round((occupiedSlots / timeSlots.length) * 100));
+
   const congestion =
     utilization >= 67
       ? { label: "혼잡", cls: "bg-rose-100 text-rose-700" }
@@ -126,13 +123,15 @@ function SessionCard({ data, onDelete, deletingId }: SessionCardProps) {
 
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  const active = data.reservations.filter((reservation) => {
-    const start = toMinutes(reservation.startTime);
-    const end = toMinutes(reservation.endTime);
-    return nowMin >= start && nowMin < end;
-  });
-  const nextUp = [...data.reservations]
-    .filter((reservation) => toMinutes(reservation.startTime) >= nowMin)
+
+  const withDisplay = data.reservations.map((reservation) => ({
+    ...reservation,
+    display: deriveDisplayStatus(reservation, now),
+  }));
+
+  const active = withDisplay.filter((reservation) => reservation.display.phase === "active");
+  const nextUp = [...withDisplay]
+    .filter((reservation) => reservation.display.phase === "upcoming")
     .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime))[0];
 
   const current = active[0];
@@ -153,9 +152,7 @@ function SessionCard({ data, onDelete, deletingId }: SessionCardProps) {
             <div className="font-semibold">{data.name}</div>
             <div className="text-xs text-gray-500 flex items-center gap-2">
               이용률 {utilization}% · 진행 중 {active.length}건
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${congestion.cls}`}>
-                {congestion.label}
-              </span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full ${congestion.cls}`}>{congestion.label}</span>
             </div>
           </div>
         </div>
@@ -166,15 +163,20 @@ function SessionCard({ data, onDelete, deletingId }: SessionCardProps) {
 
       <div className="p-4 space-y-3 text-sm">
         {current && (
-          <div className="rounded-xl bg-indigo-50 p-3">
+          <div className="rounded-xl bg-indigo-50 p-3 border border-indigo-100">
             <div className="flex items-center justify-between">
-              <div className="font-medium">
+              <div className="font-medium flex items-center gap-2">
+                <CarFront className="w-4 h-4 text-indigo-700" />
                 진행 중 {current.startTime}~{current.endTime} · {current.plate}
               </div>
               <div className="text-xs text-indigo-700">잔여 {remainMin}분</div>
             </div>
             <div className="mt-2">
               <ProgressBar percent={progressPct} />
+            </div>
+            <div className="text-xs text-gray-700 mt-2 flex gap-2 items-center">
+              <span className={`px-2 py-1 rounded-full ${current.display.badgeClass}`}>{current.display.label}</span>
+              <span className="text-gray-500">{current.display.subtext}</span>
             </div>
           </div>
         )}
@@ -189,7 +191,7 @@ function SessionCard({ data, onDelete, deletingId }: SessionCardProps) {
                 </div>
               </div>
               <span className={`text-xs px-2 py-1 rounded-full ${badgeColor(nextUp.status)}`}>
-                {nextUp.status}
+                {nextUp.display.label}
               </span>
             </div>
           ) : (
@@ -205,19 +207,20 @@ function SessionCard({ data, onDelete, deletingId }: SessionCardProps) {
                 <th className="text-left p-3">차량 번호</th>
                 <th className="text-left p-3 w-32">이메일</th>
                 <th className="text-left p-3 w-28">상태</th>
+                <th className="text-left p-3 w-32">입차 상태</th>
                 <th className="text-left p-3 w-32">예약 ID</th>
                 <th className="text-left p-3 w-20">관리</th>
               </tr>
             </thead>
             <tbody>
-              {data.reservations.length === 0 && (
+              {withDisplay.length === 0 && (
                 <tr>
-                  <td className="p-3 text-gray-500" colSpan={6}>
+                  <td className="p-3 text-gray-500" colSpan={7}>
                     예약이 없습니다.
                   </td>
                 </tr>
               )}
-              {data.reservations.map((reservation) => (
+              {withDisplay.map((reservation) => (
                 <tr key={reservation.id} className="border-t">
                   <td className="p-3 whitespace-nowrap">
                     {reservation.startTime}~{reservation.endTime}
@@ -228,6 +231,14 @@ function SessionCard({ data, onDelete, deletingId }: SessionCardProps) {
                     <span className={`text-xs px-2 py-1 rounded-full ${badgeColor(reservation.status)}`}>
                       {reservation.status}
                     </span>
+                  </td>
+                  <td className="p-3">
+                    <div className="flex flex-col gap-1 text-xs">
+                      <span className={`text-[11px] px-2 py-1 rounded-full ${reservation.display.badgeClass}`}>
+                        {reservation.display.label}
+                      </span>
+                      <span className="text-gray-500">{reservation.display.subtext}</span>
+                    </div>
                   </td>
                   <td className="p-3 text-gray-500">{reservation.id}</td>
                   <td className="p-3">
@@ -261,6 +272,57 @@ function badgeColor(status: Reservation["status"]) {
     default:
       return "bg-indigo-100 text-indigo-700";
   }
+}
+
+function deriveDisplayStatus(reservation: Reservation, now: Date) {
+  const start = toMinutes(reservation.startTime);
+  const end = toMinutes(reservation.endTime);
+  const currentMin = now.getHours() * 60 + now.getMinutes();
+  const hash = Math.abs(hashString(reservation.id)) % 100;
+  const vehicleDetected = hash % 2 === 0;
+
+  if (reservation.status === "CANCELLED") {
+    return {
+      phase: "done",
+      label: "취소됨",
+      subtext: "사용자 취소",
+      badgeClass: "bg-gray-200 text-gray-700",
+    };
+  }
+
+  if (currentMin < start) {
+    return {
+      phase: "upcoming",
+      label: vehicleDetected ? "조기 입차" : "입차 대기",
+      subtext: vehicleDetected ? "차량 감지됨" : "차량 미도착",
+      badgeClass: vehicleDetected ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700",
+    };
+  }
+
+  if (currentMin >= start && currentMin < end) {
+    return {
+      phase: "active",
+      label: vehicleDetected ? "충전 중" : "입차 확인 필요",
+      subtext: vehicleDetected ? "패드 위 차량 확인" : "차량 감지가 없습니다",
+      badgeClass: vehicleDetected ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
+    };
+  }
+
+  return {
+    phase: "done",
+    label: "완료됨",
+    subtext: "충전 세션 종료",
+    badgeClass: "bg-indigo-100 text-indigo-700",
+  };
+}
+
+function hashString(value: string) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
 }
 
 function ListDot() {

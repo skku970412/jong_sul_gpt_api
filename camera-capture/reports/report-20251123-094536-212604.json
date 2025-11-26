@@ -1,0 +1,34 @@
+{
+  "timestamp": "2025-11-23T09:45:36.211626+00:00",
+  "image_path": "D:\\종설_프젝2_gpt\\captured\\manual-20251123-184516.jpg",
+  "recognition_url": "http://localhost:8000/api/license-plates",
+  "success": true,
+  "plate": "03두2902",
+  "response": {
+    "plate": "03두2902",
+    "raw": "03두2902"
+  },
+  "error": null,
+  "detected_timestamp": "2025-11-23T09:45:17.659433+00:00",
+  "match_url": "http://localhost:8000/api/plates/match",
+  "match_success": true,
+  "match_response": {
+    "plate": "03두2902",
+    "match": true,
+    "reservation": {
+      "id": "53fd4e30-2096-4d02-9cee-597c17f88c82",
+      "sessionId": 1,
+      "plate": "03두2902",
+      "date": "2025-11-23",
+      "startTime": "18:30",
+      "endTime": "19:30",
+      "status": "IN_PROGRESS",
+      "contactEmail": "123"
+    }
+  },
+  "match_error": null,
+  "car_plate_same": null,
+  "serial_port": null,
+  "serial_trigger_sent": null,
+  "serial_trigger_error": null
+}

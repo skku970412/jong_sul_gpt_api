@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-11-19T11:34:43.292808+00:00",
+  "image_path": "D:\\종설_프젝2\\captured\\manual-20251119-203437.jpg",
+  "recognition_url": "http://127.0.0.1:8000/v1/recognize",
+  "success": false,
+  "plate": null,
+  "response": null,
+  "error": "HTTP error: HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /v1/recognize (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001D8CEF65340>: Failed to establish a new connection: [WinError 10061] 대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다'))",
+  "detected_timestamp": "2025-11-19T11:34:38.859402+00:00",
+  "match_url": "http://localhost:8000/api/plates/match",
+  "match_success": false,
+  "match_response": null,
+  "match_error": "Plate not recognized.",
+  "car_plate_same": null,
+  "serial_port": "COM4",
+  "serial_trigger_sent": null,
+  "serial_trigger_error": null
+}

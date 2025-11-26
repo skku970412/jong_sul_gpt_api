@@ -17,7 +17,13 @@ Key options:
 - `--continuous` with `--cycle-interval`: keep the worker running like a service.
 - `--skip-firebase`: bypass Firebase waiting for quick tests.
 - All previous knobs (`--signal-path`, `--camera-name`, `--output-path`, etc.) are still available.
+- `--serial-port` / `--serial-baudrate` / `--serial-message`: when a reservation match succeeds, send a trigger string (defaults to `START\n`) to an attached serial device (e.g., the Arduino sketch in `total_system.ino`, which begins operation whenever any serial byte arrives). Fine-tune with `--serial-wait`, `--serial-timeout`, and `--serial-no-newline`.
 
 Dependencies (`firebase-admin`, `opencv-python`, `pygrabber`, `requests`) already live in `backend/requirements.txt`, so `pip install -r backend/requirements.txt` inside the shared `.venv` is sufficient.
+
+## Manual trigger helper (Windows)
+
+- Double-click `../start-manual-capture.bat` (or run `.\start-manual-capture.bat` from the repo root) for a one-off capture. It uses the shared `.venv`, calls `camera-capture/main.py --skip-firebase`, and saves the photo under `captured/manual-<timestamp>.jpg`.
+- Need extra flags? Run the PowerShell script directly: `.\start-manual-capture.ps1 --recognition-url http://... --match-url http://...`.
 
 `run.ps1`와 함께 자동 실행하려면 환경 변수 `RUN_CAMERA_WORKER=1` 그리고 원하는 인자를 담은 `CAMERA_WORKER_ARGS`(예: `--credentials ... --database-url ...`)를 설정한 뒤 `.\run.ps1`을 실행하세요.

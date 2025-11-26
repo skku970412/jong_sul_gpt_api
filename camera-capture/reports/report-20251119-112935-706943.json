@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-11-19T11:29:35.706943+00:00",
+  "image_path": "D:\\종설_프젝2\\captured\\manual-20251119-202931.jpg",
+  "recognition_url": "http://127.0.0.1:9001/v1/recognize",
+  "success": true,
+  "plate": "11가1234",
+  "response": {
+    "plate": "11가1234"
+  },
+  "error": null,
+  "detected_timestamp": "2025-11-19T11:29:33.268160+00:00",
+  "match_url": "http://127.0.0.1:9001/api/plates/match",
+  "match_success": true,
+  "match_response": {
+    "match": true
+  },
+  "match_error": null,
+  "car_plate_same": null,
+  "serial_port": "COM4",
+  "serial_trigger_sent": false,
+  "serial_trigger_error": "could not open port 'COM4': FileNotFoundError(2, '지정된 파일을 찾을 수 없습니다.', None, 2)"
+}

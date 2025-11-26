@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta
 from typing import Iterable, Optional
 
@@ -296,6 +297,7 @@ def delete_reservation_for_user(
 
 def migrate_reservation_times_to_utc(session: Session) -> None:
     """Backfill existing reservations and slots to UTC if stored without tzinfo."""
+    logger = logging.getLogger(__name__)
     zone = business_timezone()
     reservations = session.scalars(
         select(Reservation).options(selectinload(Reservation.slots))
@@ -322,7 +324,13 @@ def migrate_reservation_times_to_utc(session: Session) -> None:
                 updated = True
 
     if updated:
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError as exc:  # pragma: no cover - defensive
+            session.rollback()
+            logger.warning(
+                "Skipping UTC migration due to unique constraint conflict: %s", exc
+            )
 
 
 def ensure_reservation_slots(session: Session) -> None:

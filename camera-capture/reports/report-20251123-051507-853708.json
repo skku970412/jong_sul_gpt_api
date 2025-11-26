@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-11-23T05:15:07.852712+00:00",
+  "image_path": "D:\\종설_프젝2_gpt\\captured\\manual-20251123-141502.jpg",
+  "recognition_url": "http://localhost:8000/api/license-plates",
+  "success": false,
+  "plate": null,
+  "response": null,
+  "error": "HTTP error: 500 Server Error: Internal Server Error for url: http://localhost:8000/api/license-plates",
+  "detected_timestamp": "2025-11-23T05:15:03.557878+00:00",
+  "match_url": "http://localhost:8000/api/plates/match",
+  "match_success": false,
+  "match_response": null,
+  "match_error": "Plate not recognized.",
+  "car_plate_same": null,
+  "serial_port": null,
+  "serial_trigger_sent": null,
+  "serial_trigger_error": null
+}

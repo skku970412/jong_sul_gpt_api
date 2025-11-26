@@ -98,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--recognition-url",
-        default=os.getenv("PLATE_SERVICE_URL", "http://localhost:8001/v1/recognize"),
+        default=os.getenv("PLATE_SERVICE_URL", "http://localhost:8000/api/license-plates"),
         help="License-plate recognition HTTP endpoint (default: PLATE_SERVICE_URL).",
     )
     parser.add_argument(
@@ -122,6 +122,39 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=_env_float("PLATE_MATCH_TIMEOUT", 10.0),
         help="HTTP timeout when calling the backend plate match endpoint.",
+    )
+    parser.add_argument(
+        "--serial-port",
+        default=os.getenv("PLATE_MATCH_SERIAL_PORT"),
+        help="Optional serial port (e.g., COM5) to ping when a reservation match is found.",
+    )
+    parser.add_argument(
+        "--serial-baudrate",
+        type=int,
+        default=_env_int("PLATE_MATCH_SERIAL_BAUDRATE", 9600),
+        help="Baud rate when opening the serial port.",
+    )
+    parser.add_argument(
+        "--serial-message",
+        default=os.getenv("PLATE_MATCH_SERIAL_MESSAGE", "START"),
+        help="Payload text sent to the serial device upon a successful match.",
+    )
+    parser.add_argument(
+        "--serial-timeout",
+        type=float,
+        default=_env_float("PLATE_MATCH_SERIAL_TIMEOUT", 2.0),
+        help="Seconds to wait for the serial port to open/write.",
+    )
+    parser.add_argument(
+        "--serial-wait",
+        type=float,
+        default=_env_float("PLATE_MATCH_SERIAL_WAIT_SECONDS", 0.15),
+        help="Delay (seconds) after opening the serial port before writing.",
+    )
+    parser.add_argument(
+        "--serial-no-newline",
+        action="store_true",
+        help="Do not append a newline when sending the serial payload.",
     )
     parser.add_argument(
         "--continuous",
@@ -341,8 +374,10 @@ def capture_photo(camera_index: int, output_path: Path, warmup_seconds: float) -
     finally:
         capture.release()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    if not cv2.imwrite(str(output_path), frame):
-        raise RuntimeError(f"Failed to save image to {output_path}.")
+    success, buffer = cv2.imencode(".jpg", frame)
+    if not success:
+        raise RuntimeError("Failed to encode frame as JPEG.")
+    output_path.write_bytes(buffer.tobytes())
     return output_path
 
 
@@ -403,6 +438,41 @@ def write_report(report_dir: Path, payload: Dict[str, Any]) -> Path:
     report_path = report_dir / f"report-{stamp}.json"
     report_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return report_path
+
+
+def trigger_serial_device(
+    *,
+    port: str,
+    baudrate: int,
+    message: str,
+    append_newline: bool,
+    wait_seconds: float,
+    timeout: float,
+) -> Tuple[bool, Optional[str]]:
+    try:
+        # Import lazily to keep pyserial optional until needed.
+        import serial  # type: ignore  # pylint: disable=import-error
+    except ImportError as exc:  # pragma: no cover - handled at runtime
+        return False, f"pyserial is not installed: {exc}"
+
+    payload = message or ""
+    if append_newline and not payload.endswith("\n"):
+        payload += "\n"
+    encoded = payload.encode("utf-8")
+
+    try:
+        with serial.Serial(
+            port=port,
+            baudrate=max(1200, baudrate),
+            timeout=max(0.1, timeout),
+        ) as conn:
+            if wait_seconds > 0:
+                time.sleep(wait_seconds)
+            conn.write(encoded)
+            conn.flush()
+        return True, None
+    except Exception as exc:  # pylint: disable=broad-except
+        return False, str(exc)
 
 
 def process_cycle(
@@ -475,6 +545,9 @@ def process_cycle(
     match_result: Optional[bool] = None
     recognized_plate = data.get("plate") if success and isinstance(data, dict) else None
 
+    serial_trigger_sent: Optional[bool] = None
+    serial_trigger_error: Optional[str] = None
+
     if recognized_plate:
         match_success, match_response, match_error = match_plate_http(
             url=args.match_url,
@@ -485,6 +558,19 @@ def process_cycle(
         if match_success and isinstance(match_response, dict):
             match_result = bool(match_response.get("match"))
             print(f"[Backend] Plate match result: {'ok' if match_result else 'no'}")
+            if match_result and args.serial_port:
+                serial_trigger_sent, serial_trigger_error = trigger_serial_device(
+                    port=args.serial_port,
+                    baudrate=args.serial_baudrate,
+                    message=args.serial_message,
+                    append_newline=not args.serial_no_newline,
+                    wait_seconds=args.serial_wait,
+                    timeout=args.serial_timeout,
+                )
+                if serial_trigger_sent:
+                    print(f"[Serial] Trigger sent to {args.serial_port}.")
+                else:
+                    print(f"[Serial] Failed to send trigger: {serial_trigger_error}")
         else:
             print(f"[Backend] Plate match failed: {match_error or 'unknown error'}")
     else:
@@ -520,6 +606,9 @@ def process_cycle(
         "match_response": match_response,
         "match_error": match_error,
         "car_plate_same": car_match_written,
+        "serial_port": args.serial_port,
+        "serial_trigger_sent": serial_trigger_sent,
+        "serial_trigger_error": serial_trigger_error,
     }
     report_path = write_report(Path(args.report_dir), payload)
     print(f"[Report] wrote {report_path}")

@@ -29,6 +29,7 @@ export default function App() {
   const [sessions, setSessions] = useState<SessionReservations[]>([]);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [layoutMode, setLayoutMode] = useState<"grid" | "list">("grid");
 
   const [autoRefresh, setAutoRefresh] = useState(true);
   const intervalRef = useRef<number | null>(null);
@@ -171,6 +172,8 @@ export default function App() {
               lastUpdatedAt={lastUpdatedAt}
               kpi={kpi}
               error={error}
+              layoutMode={layoutMode}
+              onLayoutModeChange={setLayoutMode}
             />
           )}
         </motion.div>

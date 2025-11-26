@@ -12,6 +12,7 @@ interface MyReservationsPageProps {
   onDelete: (id: string) => void;
   onDeleteAll: () => void;
   error: string | null;
+  onSelect: (reservation: Reservation) => void;
 }
 
 export default function MyReservationsPage({
@@ -22,6 +23,7 @@ export default function MyReservationsPage({
   onDelete,
   onDeleteAll,
   error,
+  onSelect,
 }: MyReservationsPageProps) {
   return (
     <Card>
@@ -49,7 +51,15 @@ export default function MyReservationsPage({
               <tbody>
                 {reservations.map((reservation) => (
                   <tr key={reservation.id} className="border-t">
-                    <td className="p-3">{reservation.id}</td>
+                    <td className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => onSelect(reservation)}
+                        className="text-indigo-600 hover:text-indigo-800 font-semibold underline-offset-4 hover:underline"
+                      >
+                        {reservation.id}
+                      </button>
+                    </td>
                     <td className="p-3 whitespace-nowrap">
                       {reservation.date} {reservation.startTime}~{reservation.endTime}
                     </td>

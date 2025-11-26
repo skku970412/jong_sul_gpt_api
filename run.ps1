@@ -5,6 +5,7 @@ $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent $PSCommandPath
 $SetupScript = Join-Path $Root 'setup.ps1'
+$KeyFile = Join-Path $Root 'openai-key.txt'
 
 function Write-RunLog {
     Param([string]$Message)
@@ -117,8 +118,16 @@ if ([string]::IsNullOrWhiteSpace($env:VITE_API_BASE)) {
         $env:VITE_API_BASE = "http://localhost:8000"
     }
 }
+if ([string]::IsNullOrWhiteSpace($env:OPENAI_API_KEY) -and (Test-Path $KeyFile)) {
+    try {
+        $env:OPENAI_API_KEY = (Get-Content -LiteralPath $KeyFile -Raw).Trim()
+        Write-RunLog "Loaded OPENAI_API_KEY from openai-key.txt"
+    } catch {
+        Write-Warning "[run] Failed to load openai-key.txt: $($_.Exception.Message)"
+    }
+}
 if ([string]::IsNullOrWhiteSpace($env:PLATE_SERVICE_URL)) {
-    $env:PLATE_SERVICE_URL = "http://localhost:8001/v1/recognize"
+    $env:PLATE_SERVICE_URL = "http://localhost:8000/api/license-plates"
 }
 
 Write-RunLog ("환경 변수 설정: AUTO_SEED_SESSIONS={0}, CORS_ORIGINS={1}, VITE_API_BASE={2}" -f `
@@ -128,7 +137,12 @@ Write-RunLog "필요 시 아래 명령으로 CORS_ORIGINS를 덮어쓴 뒤 다�
 Write-RunLog ('$env:CORS_ORIGINS = "{0}"' -f $env:CORS_ORIGINS)
 Write-RunLog '.\run.ps1'
 
+if ([string]::IsNullOrWhiteSpace($env:OPENAI_API_KEY)) {
+    Write-Warning "[run] OPENAI_API_KEY is not set. Plate recognition (GPT API) will fail until you configure it."
+}
+
 $processes = New-Object System.Collections.Generic.List[System.Diagnostics.Process]
+$tunnelProcess = $null
 $cameraWorkerScript = Join-Path $Root 'camera-capture\main.py'
 
 function Test-EnvFlag {
@@ -152,6 +166,27 @@ function Start-ServiceProcess {
     Write-RunLog "$Name 프로세스를 시작합니다."
     $proc = Start-Process -FilePath $FilePath -ArgumentList $Arguments -WorkingDirectory $WorkingDirectory -NoNewWindow -PassThru
     $script:processes.Add($proc) | Out-Null
+}
+
+$tunnelCommand = $env:SSH_TUNNEL_COMMAND
+if (-not [string]::IsNullOrWhiteSpace($tunnelCommand)) {
+    try {
+        $tunnelArgs = ConvertTo-ArgumentArray -Value $tunnelCommand
+        if ($tunnelArgs.Count -gt 0) {
+            $exe = $tunnelArgs[0]
+            $exeArgs = @()
+            if ($tunnelArgs.Count -gt 1) {
+                $exeArgs = $tunnelArgs[1..($tunnelArgs.Count - 1)]
+            }
+            Write-RunLog ("SSH ��Ʈ�� �빮��: {0}" -f $tunnelCommand)
+            $tunnelProcess = Start-Process -FilePath $exe -ArgumentList $exeArgs -WorkingDirectory $Root -PassThru -NoNewWindow
+            Start-Sleep -Seconds 2
+        } else {
+            Write-Warning "[run] SSH_TUNNEL_COMMAND �� ��ȿ�� ���ڰ� �ʿ��մϴ�."
+        }
+    } catch {
+        Write-Warning "[run] SSH ��Ʈ�� ���� ����: $($_.Exception.Message)"
+    }
 }
 
 Push-Location $Root
@@ -197,6 +232,14 @@ try {
     $pids = $processes | ForEach-Object { $_.Id }
     Wait-Process -Id $pids
 } finally {
+    if ($null -ne $tunnelProcess -and -not $tunnelProcess.HasExited) {
+        try {
+            Write-RunLog "SSH ��Ʈ�� ���μ��� (Id=$($tunnelProcess.Id)) �� �����մϴ�."
+            $tunnelProcess.Kill()
+        } catch {
+            Write-Warning "[run] SSH ��Ʈ�� ���� �� ����: $($_.Exception.Message)"
+        }
+    }
     foreach ($proc in $processes) {
         if ($null -ne $proc -and -not $proc.HasExited) {
             try {

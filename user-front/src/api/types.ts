@@ -52,3 +52,11 @@ export interface CreateReservationPayload {
   endTime: string;
   contactEmail: string;
 }
+
+export interface CreateReservationBatchPayload {
+  sessionId: number;
+  plate: string;
+  date: string;
+  startTimes: string[];
+  contactEmail?: string;
+}
